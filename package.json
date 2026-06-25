@@ -1,0 +1,9 @@
+{
+  "name": "wako-tennis-settings",
+  "version": "1.0.0",
+  "private": true,
+  "description": "テニスコート監視ツールの設定をスマホ/PCから変更する Vercel Web UI",
+  "engines": {
+    "node": "20.x"
+  }
+}

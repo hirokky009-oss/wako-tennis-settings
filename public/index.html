@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テニスコート監視設定</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Meiryo", "Segoe UI", sans-serif;
+  background: #eef2f7;
+  color: #2d3748;
+  min-height: 100vh;
+  padding-bottom: 48px;
+}
+header {
+  background: linear-gradient(135deg, #2b6cb0, #3182ce);
+  color: #fff;
+  padding: 18px 20px 16px;
+  margin-bottom: 24px;
+}
+header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; }
+header p  { font-size: .78rem; opacity: .75; margin-top: 3px; }
+
+.container { max-width: 520px; margin: 0 auto; padding: 0 16px; }
+
+.card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+}
+.card-title {
+  font-size: .72rem;
+  font-weight: 700;
+  color: #a0aec0;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 14px;
+}
+
+/* Chip checkboxes */
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: .88rem;
+  background: #fff;
+  transition: all .15s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chip input[type=checkbox] {
+  width: 14px; height: 14px;
+  accent-color: #3182ce;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chip.on { background: #ebf4ff; border-color: #4299e1; color: #2b6cb0; font-weight: 600; }
+
+/* Number fields */
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 0;
+  border-bottom: 1px solid #f7fafc;
+}
+.field-row:last-child { border-bottom: none; padding-bottom: 0; }
+.field-row:first-child { padding-top: 0; }
+.field-label { font-size: .9rem; color: #4a5568; flex: 1; }
+.field-unit  { font-size: .82rem; color: #718096; white-space: nowrap; }
+input[type=number] {
+  width: 66px;
+  padding: 7px 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: .95rem;
+  text-align: center;
+  outline: none;
+  transition: border .15s, box-shadow .15s;
+  -moz-appearance: textfield;
+}
+input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+input[type=number]:focus {
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px #bee3f8;
+}
+
+/* Toggle */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f7fafc;
+}
+.toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+.toggle-row:first-child { padding-top: 0; }
+.toggle-info { flex: 1; min-width: 0; }
+.toggle-name { font-size: .92rem; }
+.toggle-note { font-size: .75rem; color: #a0aec0; margin-top: 3px; }
+.sw { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+.sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+.sw-track {
+  position: absolute; inset: 0;
+  background: #cbd5e0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.sw-thumb {
+  position: absolute;
+  width: 20px; height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px; left: 3px;
+  transition: transform .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  pointer-events: none;
+}
+.sw input:checked ~ .sw-track  { background: #4299e1; }
+.sw input:checked ~ .sw-thumb  { transform: translateX(20px); }
+.sw input:disabled ~ .sw-track { opacity: .45; cursor: default; }
+
+/* Save button */
+.btn-save {
+  width: 100%;
+  padding: 14px;
+  background: #3182ce;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+  margin-top: 4px;
+  letter-spacing: .03em;
+}
+.btn-save:hover  { background: #2b6cb0; }
+.btn-save:active { transform: scale(.98); }
+.btn-save:disabled { background: #a0aec0; cursor: default; }
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 11px 22px;
+  background: #2d3748;
+  color: #fff;
+  border-radius: 9px;
+  font-size: .88rem;
+  box-shadow: 0 4px 18px rgba(0,0,0,.22);
+  transition: bottom .28s ease;
+  white-space: nowrap;
+  z-index: 9999;
+}
+#toast.show { bottom: 28px; }
+
+/* Password gate */
+#gate {
+  position: fixed; inset: 0;
+  background: #eef2f7;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  z-index: 10000;
+}
+#gate .box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 26px 22px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.1);
+}
+#gate h2 { font-size: 1.05rem; margin-bottom: 6px; }
+#gate p  { font-size: .8rem; color: #718096; margin-bottom: 16px; }
+#gate input[type=password] {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 1rem;
+  outline: none;
+  margin-bottom: 12px;
+}
+#gate input[type=password]:focus { border-color: #4299e1; box-shadow: 0 0 0 3px #bee3f8; }
+#gate .err { color: #e53e3e; font-size: .8rem; min-height: 1.1em; margin-bottom: 10px; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- パスワード入力 -->
+<div id="gate">
+  <div class="box">
+    <h2>🎾 設定を開く</h2>
+    <p>このページの設定を見る／変更するにはパスワードが必要です。</p>
+    <input type="password" id="gate-pw" placeholder="パスワード" autocomplete="current-password">
+    <div class="err" id="gate-err"></div>
+    <button class="btn-save" id="gate-btn">開く</button>
+  </div>
+</div>
+
+<header>
+  <h1>🎾 テニスコート監視設定</h1>
+  <p>変更して「保存」を押すと GitHub の config.json に反映されます</p>
+</header>
+
+<div class="container">
+
+  <!-- 施設 -->
+  <div class="card">
+    <div class="card-title">施設</div>
+    <div class="chip-group" id="fac-group">
+      <span style="color:#a0aec0;font-size:.85rem">読み込み中…</span>
+    </div>
+  </div>
+
+  <!-- 対象曜日 -->
+  <div class="card">
+    <div class="card-title">対象曜日</div>
+    <div class="chip-group">
+      <label class="chip"><input type="checkbox" data-day="saturday"> 土曜日</label>
+      <label class="chip"><input type="checkbox" data-day="sunday">   日曜日</label>
+      <label class="chip"><input type="checkbox" data-day="holiday">  祝日</label>
+      <label class="chip"><input type="checkbox" data-day="weekday">  平日</label>
+    </div>
+  </div>
+
+  <!-- 時間帯・監視期間・頻度 -->
+  <div class="card">
+    <div class="card-title">時間帯・頻度・監視期間</div>
+    <div class="field-row">
+      <span class="field-label">通知時間帯</span>
+      <input type="number" id="start-hour" min="0" max="23" value="7">
+      <span class="field-unit">時 〜</span>
+      <input type="number" id="end-hour" min="1" max="24" value="22">
+      <span class="field-unit">時開始の枠</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">チェック間隔</span>
+      <input type="number" id="interval" min="0" max="24" value="2">
+      <span class="field-unit">時間ごと</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">監視期間</span>
+      <input type="number" id="look-ahead" min="1" max="180" value="60">
+      <span class="field-unit">日間先まで</span>
+    </div>
+  </div>
+
+  <!-- 通知方法 -->
+  <div class="card">
+    <div class="card-title">通知方法</div>
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <div class="toggle-name">メール通知</div>
+        <div class="toggle-note" id="email-addr">-</div>
+      </div>
+      <label class="sw">
+        <input type="checkbox" id="email-toggle">
+        <div class="sw-track"></div>
+        <div class="sw-thumb"></div>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <div class="toggle-name">LINE 通知</div>
+        <div class="toggle-note">Secrets に LINE_CHANNEL_TOKEN / LINE_USER_ID が必要</div>
+      </div>
+      <label class="sw">
+        <input type="checkbox" id="line-toggle">
+        <div class="sw-track"></div>
+        <div class="sw-thumb"></div>
+      </label>
+    </div>
+  </div>
+
+  <button class="btn-save" id="save-btn" onclick="saveConfig()">設定を保存</button>
+
+</div>
+<div id="toast"></div>
+
+<script>
+let cfg = {};
+const PW_KEY = "tennis_settings_pw";
+
+function pw() { return sessionStorage.getItem(PW_KEY) || ""; }
+
+function authHeaders(extra) {
+  return Object.assign({ "x-settings-password": pw() }, extra || {});
+}
+
+function setChip(lbl, on) { lbl.classList.toggle('on', on); }
+
+// Static chips (weekday selectors)
+document.querySelectorAll('.chip input[data-day]').forEach(cb => {
+  cb.addEventListener('change', () => setChip(cb.closest('.chip'), cb.checked));
+});
+
+// ── パスワードゲート ──
+const gate    = document.getElementById('gate');
+const gateBtn = document.getElementById('gate-btn');
+const gatePw  = document.getElementById('gate-pw');
+const gateErr = document.getElementById('gate-err');
+
+async function tryUnlock() {
+  gateErr.textContent = '';
+  const val = gatePw.value;
+  if (!val) { gateErr.textContent = 'パスワードを入力してください'; return; }
+  sessionStorage.setItem(PW_KEY, val);
+  const ok = await loadConfig();
+  if (ok) {
+    gate.classList.add('hidden');
+  } else {
+    sessionStorage.removeItem(PW_KEY);
+  }
+}
+gateBtn.addEventListener('click', tryUnlock);
+gatePw.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+
+async function loadConfig() {
+  let res;
+  try {
+    res = await fetch('/api/config', { headers: authHeaders() });
+  } catch {
+    gateErr.textContent = 'サーバーに接続できません';
+    return false;
+  }
+  if (res.status === 401) { gateErr.textContent = 'パスワードが違います'; return false; }
+  if (!res.ok) {
+    let msg = '読み込みに失敗しました';
+    try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+    gateErr.textContent = msg;
+    return false;
+  }
+  try {
+    cfg = await res.json();
+  } catch {
+    gateErr.textContent = '設定の解析に失敗しました';
+    return false;
+  }
+  render();
+  return true;
+}
+
+function render() {
+  // --- Facilities ---
+  const city = (cfg.cities || [{}])[0] || {};
+  const facs = Array.isArray(city.facilities) ? city.facilities : [];
+  const grp = document.getElementById('fac-group');
+  grp.innerHTML = '';
+  if (!facs.length) {
+    grp.innerHTML = '<span style="color:#a0aec0;font-size:.85rem">施設が設定されていません</span>';
+  } else {
+    facs.forEach(f => {
+      const lbl = document.createElement('label');
+      const on  = f.enabled !== false;
+      lbl.className = 'chip' + (on ? ' on' : '');
+      const cb  = document.createElement('input');
+      cb.type    = 'checkbox';
+      cb.checked = on;
+      cb.dataset.display = f.display;
+      cb.dataset.system  = f.system;
+      cb.addEventListener('change', () => setChip(lbl, cb.checked));
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(' ' + f.display));
+      grp.appendChild(lbl);
+    });
+  }
+
+  // --- Target days ---
+  const days = new Set((cfg.schedule || {}).target_days || []);
+  document.querySelectorAll('[data-day]').forEach(cb => {
+    cb.checked = days.has(cb.dataset.day);
+    setChip(cb.closest('.chip'), cb.checked);
+  });
+
+  // --- Schedule ---
+  const s = cfg.schedule || {};
+  document.getElementById('start-hour').value = s.slot_start_hour ?? 7;
+  document.getElementById('end-hour').value   = s.slot_end_hour   ?? 22;
+  document.getElementById('interval').value   = s.check_interval_hours ?? 2;
+  document.getElementById('look-ahead').value = s.look_ahead_days ?? 60;
+
+  // --- Notifications ---
+  const n = cfg.notifications || {};
+  document.getElementById('email-addr').textContent = n.email || '未設定';
+  // email_enabled が無い既存設定は「オン」とみなす（従来はメール常時オンのため）
+  document.getElementById('email-toggle').checked = n.email_enabled !== false;
+  document.getElementById('line-toggle').checked  = !!n.line;
+}
+
+function saveConfig() {
+  const btn = document.getElementById('save-btn');
+
+  // Facilities
+  const facCbs = document.querySelectorAll('#fac-group input[type=checkbox]');
+  const facilities = Array.from(facCbs).map(cb => ({
+    display: cb.dataset.display,
+    system:  cb.dataset.system,
+    enabled: cb.checked,
+  }));
+
+  // Target days
+  const targetDays = Array.from(
+    document.querySelectorAll('[data-day]:checked')
+  ).map(cb => cb.dataset.day);
+
+  // Validate
+  const startH = parseInt(document.getElementById('start-hour').value, 10);
+  const endH   = parseInt(document.getElementById('end-hour').value,   10);
+  if (startH >= endH) {
+    showToast('開始時刻は終了時刻より前にしてください');
+    return;
+  }
+  const interval = parseInt(document.getElementById('interval').value, 10);
+
+  const newCfg = {
+    ...cfg,
+    cities: [{
+      ...((cfg.cities || [{}])[0] || {}),
+      facilities,
+    }],
+    schedule: {
+      ...(cfg.schedule || {}),
+      target_days:          targetDays,
+      slot_start_hour:      startH,
+      slot_end_hour:        endH,
+      check_interval_hours: isNaN(interval) ? 0 : interval,
+      look_ahead_days:      parseInt(document.getElementById('look-ahead').value, 10),
+    },
+    notifications: {
+      ...(cfg.notifications || {}),
+      email_enabled: document.getElementById('email-toggle').checked,
+      line:          document.getElementById('line-toggle').checked,
+    },
+  };
+
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  fetch('/api/config', {
+    method:  'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body:    JSON.stringify(newCfg),
+  })
+  .then(async r => {
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) { cfg = newCfg; showToast('設定を保存しました ✓'); }
+    else if (r.status === 401) { showToast('パスワードが違います'); }
+    else { showToast('エラー: ' + (j.error || ('HTTP ' + r.status))); }
+  })
+  .catch(() => showToast('サーバーへの接続に失敗しました'))
+  .finally(() => { btn.disabled = false; btn.textContent = '設定を保存'; });
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// セッションに既にパスワードがあれば自動で開く
+if (pw()) {
+  loadConfig().then(ok => { if (ok) gate.classList.add('hidden'); });
+}
+gatePw.focus();
+</script>
+</body>
+</html>
