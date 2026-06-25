@@ -4,6 +4,6 @@
   "private": true,
   "description": "テニスコート監視ツールの設定をスマホ/PCから変更する Vercel Web UI",
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   }
 }
