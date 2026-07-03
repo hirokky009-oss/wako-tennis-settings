@@ -40,6 +40,63 @@ header p  { font-size: .78rem; opacity: .75; margin-top: 3px; }
   margin-bottom: 14px;
 }
 
+/* Group card */
+.group-card { border: 1.5px solid #e2e8f0; }
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.group-name {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2b6cb0;
+  outline: none;
+}
+.group-name:focus { border-color: #4299e1; box-shadow: 0 0 0 3px #bee3f8; }
+.group-del {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  background: #fff;
+  color: #e53e3e;
+  border: 1.5px solid #fed7d7;
+  border-radius: 9px;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.group-del:hover { background: #fff5f5; }
+.sub-title {
+  font-size: .74rem;
+  font-weight: 700;
+  color: #718096;
+  margin: 14px 0 8px;
+}
+.sub-title:first-of-type { margin-top: 0; }
+
+/* Add-group button */
+.btn-add {
+  width: 100%;
+  padding: 12px;
+  background: #fff;
+  color: #3182ce;
+  border: 1.5px dashed #90cdf4;
+  border-radius: 12px;
+  font-size: .92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+  margin-bottom: 20px;
+}
+.btn-add:hover { background: #ebf8ff; }
+
 /* Chip checkboxes */
 .chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -74,6 +131,7 @@ header p  { font-size: .78rem; opacity: .75; margin-top: 3px; }
 }
 .field-row:last-child { border-bottom: none; padding-bottom: 0; }
 .field-row:first-child { padding-top: 0; }
+.group-card .field-row { padding: 4px 0; border-bottom: none; }
 .field-label { font-size: .9rem; color: #4a5568; flex: 1; }
 .field-unit  { font-size: .82rem; color: #718096; white-space: nowrap; }
 input[type=number] {
@@ -219,35 +277,16 @@ input[type=number]:focus {
 
 <div class="container">
 
-  <!-- 施設 -->
-  <div class="card">
-    <div class="card-title">施設</div>
-    <div class="chip-group" id="fac-group">
-      <span style="color:#a0aec0;font-size:.85rem">読み込み中…</span>
-    </div>
+  <!-- 監視グループ -->
+  <div class="card-title" style="padding:0 4px 2px;">監視グループ（曜日 × 施設 × 時間帯）</div>
+  <div id="groups-container">
+    <div class="card"><span style="color:#a0aec0;font-size:.85rem">読み込み中…</span></div>
   </div>
+  <button class="btn-add" id="add-group" type="button">＋ グループを追加</button>
 
-  <!-- 対象曜日 -->
+  <!-- 頻度・監視期間 -->
   <div class="card">
-    <div class="card-title">対象曜日</div>
-    <div class="chip-group">
-      <label class="chip"><input type="checkbox" data-day="saturday"> 土曜日</label>
-      <label class="chip"><input type="checkbox" data-day="sunday">   日曜日</label>
-      <label class="chip"><input type="checkbox" data-day="holiday">  祝日</label>
-      <label class="chip"><input type="checkbox" data-day="weekday">  平日</label>
-    </div>
-  </div>
-
-  <!-- 時間帯・監視期間・頻度 -->
-  <div class="card">
-    <div class="card-title">時間帯・頻度・監視期間</div>
-    <div class="field-row">
-      <span class="field-label">通知時間帯</span>
-      <input type="number" id="start-hour" min="0" max="23" value="7">
-      <span class="field-unit">時 〜</span>
-      <input type="number" id="end-hour" min="1" max="24" value="22">
-      <span class="field-unit">時開始の枠</span>
-    </div>
+    <div class="card-title">頻度・監視期間</div>
     <div class="field-row">
       <span class="field-label">チェック間隔</span>
       <input type="number" id="interval" min="0" max="24" value="2">
@@ -294,7 +333,14 @@ input[type=number]:focus {
 
 <script>
 let cfg = {};
+let masterFacilities = [];  // [{display, system, enabled}] — 施設マスター（config.cities から）
 const PW_KEY = "tennis_settings_pw";
+
+// 曜日キー（config）と表示ラベルの対応
+const DAY_DEFS = [
+  ["monday", "月"], ["tuesday", "火"], ["wednesday", "水"], ["thursday", "木"],
+  ["friday", "金"], ["saturday", "土"], ["sunday", "日"], ["holiday", "祝"],
+];
 
 function pw() { return sessionStorage.getItem(PW_KEY) || ""; }
 
@@ -304,10 +350,12 @@ function authHeaders(extra) {
 
 function setChip(lbl, on) { lbl.classList.toggle('on', on); }
 
-// Static chips (weekday selectors)
-document.querySelectorAll('.chip input[data-day]').forEach(cb => {
-  cb.addEventListener('change', () => setChip(cb.closest('.chip'), cb.checked));
-});
+function subTitle(t) {
+  const d = document.createElement('div');
+  d.className = 'sub-title';
+  d.textContent = t;
+  return d;
+}
 
 // ── パスワードゲート ──
 const gate    = document.getElementById('gate');
@@ -355,46 +403,119 @@ async function loadConfig() {
   return true;
 }
 
-function render() {
-  // --- Facilities ---
-  const city = (cfg.cities || [{}])[0] || {};
-  const facs = Array.isArray(city.facilities) ? city.facilities : [];
-  const grp = document.getElementById('fac-group');
-  grp.innerHTML = '';
-  if (!facs.length) {
-    grp.innerHTML = '<span style="color:#a0aec0;font-size:.85rem">施設が設定されていません</span>';
+// ── グループカードの生成 ──
+function buildGroupCard(g) {
+  const card = document.createElement('div');
+  card.className = 'card group-card';
+
+  // ヘッダ: 名前 + 削除
+  const head = document.createElement('div');
+  head.className = 'group-head';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'group-name';
+  nameInput.placeholder = 'グループ名（例: 土日祝）';
+  nameInput.value = g.name || '';
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'group-del';
+  del.textContent = '削除';
+  del.onclick = () => card.remove();
+  head.appendChild(nameInput);
+  head.appendChild(del);
+  card.appendChild(head);
+
+  // 対象曜日
+  card.appendChild(subTitle('対象曜日'));
+  const dayGroup = document.createElement('div');
+  dayGroup.className = 'chip-group';
+  const gdays = new Set(g.target_days || []);
+  DAY_DEFS.forEach(([key, label]) => {
+    const lbl = document.createElement('label');
+    const on  = gdays.has(key);
+    lbl.className = 'chip' + (on ? ' on' : '');
+    const cb  = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = on;
+    cb.dataset.day = key;
+    cb.addEventListener('change', () => setChip(lbl, cb.checked));
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + label));
+    dayGroup.appendChild(lbl);
+  });
+  card.appendChild(dayGroup);
+
+  // 対象施設
+  card.appendChild(subTitle('対象施設'));
+  const facGroup = document.createElement('div');
+  facGroup.className = 'chip-group';
+  // グループに facilities 指定が無ければ全施設をオンとみなす
+  const gfacs = new Set(g.facilities || masterFacilities.map(f => f.display));
+  if (!masterFacilities.length) {
+    facGroup.innerHTML = '<span style="color:#a0aec0;font-size:.85rem">施設が設定されていません</span>';
   } else {
-    facs.forEach(f => {
+    masterFacilities.forEach(f => {
       const lbl = document.createElement('label');
-      const on  = f.enabled !== false;
+      const on  = gfacs.has(f.display);
       lbl.className = 'chip' + (on ? ' on' : '');
       const cb  = document.createElement('input');
-      cb.type    = 'checkbox';
+      cb.type = 'checkbox';
       cb.checked = on;
-      cb.dataset.display = f.display;
-      cb.dataset.system  = f.system;
+      cb.dataset.fac = f.display;
       cb.addEventListener('change', () => setChip(lbl, cb.checked));
       lbl.appendChild(cb);
       lbl.appendChild(document.createTextNode(' ' + f.display));
-      grp.appendChild(lbl);
+      facGroup.appendChild(lbl);
     });
   }
+  card.appendChild(facGroup);
 
-  // --- Target days ---
-  const days = new Set((cfg.schedule || {}).target_days || []);
-  document.querySelectorAll('[data-day]').forEach(cb => {
-    cb.checked = days.has(cb.dataset.day);
-    setChip(cb.closest('.chip'), cb.checked);
-  });
+  // 時間帯
+  card.appendChild(subTitle('時間帯（開始時刻の範囲）'));
+  const row = document.createElement('div');
+  row.className = 'field-row';
+  const startV = g.slot_start_hour ?? 8;
+  const endV   = g.slot_end_hour ?? 11;
+  row.innerHTML =
+    '<span class="field-label">通知する枠</span>' +
+    '<input type="number" class="g-start" min="0" max="23" value="' + startV + '">' +
+    '<span class="field-unit">時 〜</span>' +
+    '<input type="number" class="g-end" min="1" max="24" value="' + endV + '">' +
+    '<span class="field-unit">時開始</span>';
+  card.appendChild(row);
 
-  // --- Schedule ---
-  const s = cfg.schedule || {};
-  document.getElementById('start-hour').value = s.slot_start_hour ?? 7;
-  document.getElementById('end-hour').value   = s.slot_end_hour   ?? 22;
-  document.getElementById('interval').value   = s.check_interval_hours ?? 2;
-  document.getElementById('look-ahead').value = s.look_ahead_days ?? 60;
+  return card;
+}
 
-  // --- Notifications ---
+function render() {
+  // --- 施設マスター ---
+  const city = (cfg.cities || [{}])[0] || {};
+  masterFacilities = Array.isArray(city.facilities)
+    ? city.facilities.filter(f => f.enabled !== false)
+    : [];
+
+  // --- グループ ---
+  const sched = cfg.schedule || {};
+  let groups = Array.isArray(sched.groups) ? sched.groups : [];
+  if (!groups.length) {
+    // 旧形式（単一の target_days / slot_*）からの移行、または空設定
+    groups = [{
+      name: '既定',
+      target_days: sched.target_days || ['saturday', 'sunday', 'holiday'],
+      facilities: masterFacilities.map(f => f.display),
+      slot_start_hour: sched.slot_start_hour ?? 8,
+      slot_end_hour: sched.slot_end_hour ?? 11,
+    }];
+  }
+  const container = document.getElementById('groups-container');
+  container.innerHTML = '';
+  groups.forEach(g => container.appendChild(buildGroupCard(g)));
+
+  // --- 頻度・監視期間 ---
+  document.getElementById('interval').value   = sched.check_interval_hours ?? 2;
+  document.getElementById('look-ahead').value = sched.look_ahead_days ?? 60;
+
+  // --- 通知 ---
   const n = cfg.notifications || {};
   document.getElementById('email-addr').textContent = n.email || '未設定';
   // email_enabled が無い既存設定は「オン」とみなす（従来はメール常時オンのため）
@@ -402,45 +523,67 @@ function render() {
   document.getElementById('line-toggle').checked  = !!n.line;
 }
 
+// 追加ボタン
+document.getElementById('add-group').addEventListener('click', () => {
+  const card = buildGroupCard({
+    name: '',
+    target_days: [],
+    facilities: masterFacilities.map(f => f.display),
+    slot_start_hour: 8,
+    slot_end_hour: 11,
+  });
+  document.getElementById('groups-container').appendChild(card);
+});
+
+function collectGroups() {
+  const cards = document.querySelectorAll('#groups-container .group-card');
+  const groups = [];
+  cards.forEach(card => {
+    const name = card.querySelector('.group-name').value.trim();
+    const target_days = Array.from(card.querySelectorAll('[data-day]:checked'))
+      .map(cb => cb.dataset.day);
+    const facilities = Array.from(card.querySelectorAll('[data-fac]:checked'))
+      .map(cb => cb.dataset.fac);
+    const startH = parseInt(card.querySelector('.g-start').value, 10);
+    const endH   = parseInt(card.querySelector('.g-end').value, 10);
+    groups.push({ name, target_days, facilities, slot_start_hour: startH, slot_end_hour: endH });
+  });
+  return groups;
+}
+
 function saveConfig() {
   const btn = document.getElementById('save-btn');
 
-  // Facilities
-  const facCbs = document.querySelectorAll('#fac-group input[type=checkbox]');
-  const facilities = Array.from(facCbs).map(cb => ({
-    display: cb.dataset.display,
-    system:  cb.dataset.system,
-    enabled: cb.checked,
-  }));
-
-  // Target days
-  const targetDays = Array.from(
-    document.querySelectorAll('[data-day]:checked')
-  ).map(cb => cb.dataset.day);
-
-  // Validate
-  const startH = parseInt(document.getElementById('start-hour').value, 10);
-  const endH   = parseInt(document.getElementById('end-hour').value,   10);
-  if (startH >= endH) {
-    showToast('開始時刻は終了時刻より前にしてください');
-    return;
+  const groups = collectGroups();
+  if (!groups.length) { showToast('グループを1つ以上作成してください'); return; }
+  for (const g of groups) {
+    const label = g.name || '(名称未設定)';
+    if (isNaN(g.slot_start_hour) || isNaN(g.slot_end_hour) || g.slot_start_hour >= g.slot_end_hour) {
+      showToast('「' + label + '」の開始時刻は終了時刻より前にしてください');
+      return;
+    }
+    if (!g.target_days.length) { showToast('「' + label + '」の曜日を選択してください'); return; }
+    if (!g.facilities.length)  { showToast('「' + label + '」の施設を選択してください'); return; }
   }
-  const interval = parseInt(document.getElementById('interval').value, 10);
+
+  const interval  = parseInt(document.getElementById('interval').value, 10);
+  const lookAhead = parseInt(document.getElementById('look-ahead').value, 10);
+
+  const newSchedule = {
+    ...(cfg.schedule || {}),
+    groups,
+    check_interval_hours: isNaN(interval) ? 0 : interval,
+    look_ahead_days: isNaN(lookAhead) ? 60 : lookAhead,
+  };
+  // 旧形式のキーが残っていると混乱するため削除（groups が唯一の設定源）
+  delete newSchedule.target_days;
+  delete newSchedule.slot_start_hour;
+  delete newSchedule.slot_end_hour;
 
   const newCfg = {
     ...cfg,
-    cities: [{
-      ...((cfg.cities || [{}])[0] || {}),
-      facilities,
-    }],
-    schedule: {
-      ...(cfg.schedule || {}),
-      target_days:          targetDays,
-      slot_start_hour:      startH,
-      slot_end_hour:        endH,
-      check_interval_hours: isNaN(interval) ? 0 : interval,
-      look_ahead_days:      parseInt(document.getElementById('look-ahead').value, 10),
-    },
+    // cities（施設マスター）はこの画面では変更しないのでそのまま保持
+    schedule: newSchedule,
     notifications: {
       ...(cfg.notifications || {}),
       email_enabled: document.getElementById('email-toggle').checked,
